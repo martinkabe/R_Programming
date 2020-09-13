@@ -1,1 +1,1 @@
-https://htmlpreview.github.io/?https://github.com/martinkabe/R_Programming/blob/master/JJ_ML/BreastCancer.html
+http://195.178.93.118/statistika/JJ/BreastCancer.html
