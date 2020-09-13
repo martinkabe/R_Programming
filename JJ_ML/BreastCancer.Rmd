@@ -1,0 +1,241 @@
+---
+title: "Machine Learning - Breast Cancer Detection"
+author: "Martin Kovarik"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  rmdformats::readthedown:
+    self_contained: true
+    thumbnails: true
+    lightbox: true
+    gallery: false
+    highlight: tango
+    code_folding: hide
+    css: "d:/R_Scripts/JJ_ML/style.css"
+---
+
+# Data Set Information
+<p>Wisconsin Breast cancer data set used in this paper is collected from university of Wisconsin hospitals, Madison
+Dr.William H.Wolberg. He had introduced 699 instances with 10 attributes[17]. The class distribution is framed as
+Benign and malignant. There are 1 dependent variable and 9 independent variables. The values for the independent
+variables ranges from 1 - 10 and for class variable 2 for Benign and 4 for malignant tumor. The minimum
+possibilities for a person to get breast cancer is 1 and the maximum possibilities are represented by the value 10.</p>
+
+<p>Features are computed from a digitized image of a fine needle aspirate (FNA) of a breast mass. They describe characteristics of the cell nuclei present in the image. More detailed description can be found <a href="https://archive.ics.uci.edu/ml/datasets/Breast+Cancer+Wisconsin+(Diagnostic)">here</a>.</p>
+
+<p>Separating plane described above was obtained using Multisurface Method-Tree (MSM-T) [K. P. Bennett, "Decision Tree Construction Via Linear Programming." Proceedings of the 4th Midwest Artificial Intelligence and Cognitive Science Society, pp. 97-101, 1992], a classification method which uses linear programming to construct a decision tree. Relevant features were selected using an exhaustive search in the space of 1-4 features and 1-3 separating planes.</p>
+
+<p>The actual linear program used to obtain the separating plane in the 3-dimensional space is that described in: [K. P. Bennett and O. L. Mangasarian: "Robust Linear Programming Discrimination of Two Linearly Inseparable Sets", Optimization Methods and Software 1, 1992, 23-34].</p>
+
+## Attribute Information
+
+```{r, echo=FALSE}
+htmltools::includeHTML("d:/R_Scripts/JJ_ML/attributeInfo.html")
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+suppressMessages(library(dplyr))
+suppressMessages(library(ggplot2))
+suppressMessages(library(plotly))
+suppressMessages(library(kableExtra))
+suppressMessages(library(corrgram))
+suppressMessages(library(psych))
+suppressMessages(library(factoextra))
+suppressMessages(library(gridExtra))
+suppressMessages(library(corrplot))
+suppressMessages(library(summarytools))
+suppressMessages(library(caret))
+```
+
+### Data View
+
+```{r loadData}
+url = "https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/breast-cancer-wisconsin.data"
+#Change the column headings
+data = read.csv(file = url, header = FALSE,
+                 col.names = c("SCNo","CT", "UCSize", "UCShape", "MAF", "ECSize", "BN", "BC", "NN","M", "Dia") )
+
+data = data %>% select(-SCNo) %>% 
+  mutate(
+  Response = ifelse(Dia == 4, 1, 0),
+  Response = as.integer(Response),
+  BN = strtoi(BN)
+)
+
+kbl(data) %>%
+  kable_paper() %>%
+  scroll_box(width = "800px", height = "300px")
+```
+
+
+# Multivariate Data Analysis
+
+<p>There are `r nrow(data[is.na(data$BN),])` missing valus in Bare Nuclei predictor. The most of these appear in 0 response variable (14 observations) and we have 458 cases of 0 category and 241 of 1 category, thus I can remove these observations from dataset.</p>
+
+```{r newDataset}
+data2 = data[!is.na(data$BN),]
+```
+
+## Basic Stats
+```{r basicStats}
+data2$ClassCat[data2$Dia == 4] = 'Malignant'
+data2$ClassCat[data2$Dia == 2] = 'Benign'
+```
+
+<p>Stats for category of Malignant:</p>
+
+```{r malignant, warning=FALSE}
+malignant = summarytools::descr(data2[,c(1:9, 12)] %>% filter(ClassCat == "Malignant") %>% select(-ClassCat), round.digits=3)
+kbl(malignant) %>%
+  kable_paper() %>%
+  scroll_box(width = "800px", height = "300px")
+```
+
+<p>Stats for category of Benign:</p>
+
+```{r bening, warning=FALSE}
+benign = summarytools::descr(data2[,c(1:9, 12)] %>% filter(ClassCat == "Benign") %>% select(-ClassCat), round.digits=3)
+kbl(benign) %>%
+  kable_paper() %>%
+  scroll_box(width = "800px", height = "300px")
+```
+
+## Correlation Chart
+
+```{r correlationChart}
+pairs.panels(data[,c(1:9)], method="pearson",
+             hist.col = "#1fbbfa", density=TRUE, ellipses=TRUE, show.points = TRUE,
+             pch=1, lm=TRUE, cex.cor=1, smoother=F, stars = T, main="Correlation chart for all potentional predictors")
+```
+
+## Principal Component Analysis
+
+```{r principalComponent, warning=FALSE}
+all_pca = prcomp(data2[,1:9], cor=TRUE, scale = TRUE)
+summary(all_pca)
+fviz_eig(all_pca, addlabels = TRUE, ylim = c(0, 75), geom = c("bar", "line"), barfill = "pink",  
+         barcolor="blue",linecolor = "red", ncp = 10) +
+  labs(title = "PCA for all predictors, excluded NAs in BN predictor",
+       x = "Principal Components", y = "% of Variance")
+```
+
+```{r corrPlot}
+all_var = get_pca_var(all_pca)
+all_var
+```
+
+<p><b>cos2</b> represents the quality of representation for variables on the factor map. It’s calculated as the squared coordinates:</p>
+
+$$cos2 = coord * coord$$
+
+```{r corrplotCos, warning=FALSE}
+corrplot(all_var$cos2, is.corr=FALSE)
+```
+
+<p><b>contrib</b> contains the contributions (in percentage) of the variables to the principal components. The contribution of a variable (var) to a given principal component is (in percentage):</p>
+
+$$contrib = \frac{cos2 * 100}{total\;cos2\;of\;the\;component}$$
+
+```{r corrplotContrib, warning=FALSE}
+corrplot(all_var$contrib, is.corr=FALSE)
+```
+
+<p>Contribution of Variables to Dim1/Dim2:</p>
+
+```{r gridArrange, warning=FALSE}
+p1 = fviz_contrib(all_pca, choice = "var", axes=1, fill = "pink", color = "grey", top = 10)
+p2 = fviz_contrib(all_pca, choice = "var", axes=2, fill = "skyblue", color = "grey", top = 10)
+grid.arrange(p1, p2, ncol = 2)
+```
+
+<p>Scores and Loadings in one plot called PCA Biplot:</p>
+
+```{r pcaBiPlot, warning=FALSE}
+fviz_pca_biplot(all_pca, col.ind = data2$ClassCat, col = "black",
+                palette = "jco", geom = "point", repel = TRUE,
+                legend.title = "Diagnosis", addEllipses = TRUE)
+```
+
+<p>Interactive 3D chart - correlation between UCSize, UCShape and BC:</p>
+
+```{r chart3D, warning=FALSE}
+plot_ly(data2, x=~UCSize, y=~UCShape, z=~BC,
+        color=~ClassCat, mode= "markers",type = "scatter3d") %>% 
+  layout(title = "UCSize, UCShape and BC correlation by Diagnosis")
+
+```
+
+<p>Interactive score plot for PC1 and PC2:</p>
+
+```{r interactiveBiplot, warning=FALSE}
+pca_coordinates = as.data.frame(all_pca$x) %>% select(PC1, PC2) %>% cbind(data2[,c(1:9, 12)])
+plot_ly(data = pca_coordinates, x = ~PC1, y = ~PC2, type = 'scatter',
+               mode = 'markers', symbol = ~ClassCat, symbols = c('circle','x','o'),
+               text = ~paste("CT: ", CT, '<br>UCSize:', UCSize, '<br>UCShape: ', UCShape, '<br>MAF: ', MAF, '<br>ECSize: ', ECSize),
+               color = ~ClassCat, marker = list(size = 10)) %>%
+  layout(title = "Score plot for PC1 and PC2")
+```
+
+
+# Best Classification Model Selection
+
+<p>Below part demonstrates best classification model selection based on metrics such as Accuracy, Sensitivity and Specificity.</p>
+
+![Best Model Selection.](d:/R_Scripts/JJ_ML/MLMedodology.JPG)
+<br>
+$$Accuracy = \frac{True Positives + True Negatives}{Total Population}$$
+<br>
+$$Sensitivity = \frac{True Positives}{True Positives + False Negatives}$$
+<br>
+$$Sensitivity = \frac{True Negatives}{True Negatives + False Positives}$$
+
+
+## Load the Data and compute variable importance
+
+<p>Variable importance has been computed based on Random Forest model</p>
+
+```{r loadMLData}
+load("models.RData")
+plot(varImp(rf_fit), main="Variable importance computed based on Random Forest model")
+```
+
+## Process the Results
+
+```{r processResults, warning=FALSE}
+models = list(xgboost_fit, ada_fit, c50_fit, rf_fit, nb_fit, knn_fit, svm_fit, nnet_fit, gbm_fit, logreg_fit)
+results_df = data.frame("Accuracy"=rep(0,length(models)),
+                         "Sensitivity"=rep(0,length(models)),
+                         "Specificity"=rep(0,length(models)))
+for(i in 1:length(models)) {
+  pred_mod = predict(models[[i]], newdata = testing)
+  cm = confusionMatrix(data = pred_mod, reference = testing$Class)
+  # names(cm)
+  results_df[i,1] = cm$overall[[1]] # Accuracy
+  results_df[i,2] = cm$byClass[[1]] # Sensitivity
+  results_df[i,3] = cm$byClass[[2]] # Specificity
+}
+
+rownames(results_df) = c("XGBoost","AdaBoost","c50","RandomForest","NaiveBayes",
+                          "Knn","SVM","NNET","GBM","LogReg")
+
+results_df = results_df %>% arrange(desc(Accuracy))
+```
+
+## Draw Final Outputs for Model Comparison
+
+```{r drawDotPlots, figures-side, fig.show="hold", out.width="100%"}
+dotchart(results_df$Accuracy, labels=row.names(results_df), cex=1.3, main="Accuracy", pch=19)
+dotchart(results_df$Sensitivity, labels=row.names(results_df), cex=1.3, main="Sensitivity", pch=19)
+dotchart(results_df$Specificity, labels=row.names(results_df), cex=1.3, main="Specificity", pch=19)
+```
+
+```{r tableModelComparison}
+results_df$Accuracy = cell_spec(results_df$Accuracy, color = ifelse(results_df$Accuracy > 0.97, "green", "black"))
+kbl(results_df, escape = F) %>%
+  kable_paper("striped", full_width = F)
+```
+
+
+## Conclusion
+
+<p>Results summary ...</p>
