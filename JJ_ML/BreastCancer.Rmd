@@ -187,7 +187,7 @@ $$Accuracy = \frac{True Positives + True Negatives}{Total Population}$$
 <br>
 $$Sensitivity = \frac{True Positives}{True Positives + False Negatives}$$
 <br>
-$$Sensitivity = \frac{True Negatives}{True Negatives + False Positives}$$
+$$Specificity = \frac{True Negatives}{True Negatives + False Positives}$$
 
 
 ## Load the Data and compute variable importance
