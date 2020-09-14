@@ -26,7 +26,7 @@ possibilities for a person to get breast cancer is 1 and the maximum possibiliti
 
 <p>The actual linear program used to obtain the separating plane in the 3-dimensional space is that described in: [K. P. Bennett and O. L. Mangasarian: "Robust Linear Programming Discrimination of Two Linearly Inseparable Sets", Optimization Methods and Software 1, 1992, 23-34].</p>
 
-## Attribute Information
+## Attributes Information
 
 ```{r, echo=FALSE}
 htmltools::includeHTML("d:/R_Scripts/JJ_ML/attributeInfo.html")
@@ -113,6 +113,10 @@ pairs.panels(data[,c(1:9)], method="pearson",
 ```{r principalComponent, warning=FALSE}
 all_pca = prcomp(data2[,1:9], cor=TRUE, scale = TRUE)
 summary(all_pca)
+
+kbl(all_pca$rotation[,1:5]) %>%
+  kable_paper()
+
 fviz_eig(all_pca, addlabels = TRUE, ylim = c(0, 75), geom = c("bar", "line"), barfill = "pink",  
          barcolor="blue",linecolor = "red", ncp = 10) +
   labs(title = "PCA for all predictors, excluded NAs in BN predictor",
@@ -193,6 +197,7 @@ $$Sensitivity = \frac{True Negatives}{True Negatives + False Positives}$$
 ## Load the Data and compute variable importance
 
 <p>Variable importance has been computed based on Random Forest model</p>
+<p>List of hyperparameters for selected models is available at this <a href="https://topepo.github.io/caret/available-models.html"> site</a>.</p>
 
 ```{r loadMLData}
 load("models.RData")
@@ -236,6 +241,7 @@ kbl(results_df, escape = F) %>%
 ```
 
 
-## Conclusion
+# Conclusion
 
-<p>Results summary ...</p>
+<p>The main purpose of this presentation was to demonstrate various techniques for basic data analysis.</p>
+<p>Significant part consists of classification model selection based on the results of cross validation procedure.</p>
